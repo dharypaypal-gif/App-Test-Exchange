@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cairo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Cairo", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-background: #0D0D0D;
+  --color-card: #1A1A1A;
+  --color-primary-start: #3B82F6;
+  --color-primary-end: #6366F1;
+  --color-accent: #06B6D4;
+  --color-success: #10B981;
+  --color-error: #EF4444;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-white font-sans antialiased;
+  }
+}
+
+.gradient-primary {
+  background: linear-gradient(135deg, var(--color-primary-start), var(--color-primary-end));
+}
+
+.glass-card {
+  @apply bg-card border border-white/5 shadow-xl rounded-2xl;
+}
+
+.app-container {
+  @apply min-h-screen bg-background relative overflow-hidden flex flex-col md:flex-row;
+}
+
+.main-content {
+  @apply flex-1 flex flex-col relative w-full max-w-5xl mx-auto;
+}
+
+.desktop-sidebar {
+  @apply hidden md:flex flex-col w-64 bg-card border-r border-white/5 p-6 gap-8 z-50;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
