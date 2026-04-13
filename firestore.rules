@@ -1,0 +1,100 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {userId} (Firebase Auth UID)
+// Fields:
+//   - uid: string (required) - Firebase Auth UID
+//   - displayName: string (optional) - User's full name
+//   - email: string (required) - User's email address
+//   - photoURL: string (optional) - Profile picture URL
+//   - bio: string (optional) - User's biography
+//   - role: string (required) - 'user' or 'admin'
+//   - points: number (required) - User's earned points
+//   - isNewUser: boolean (required) - Flag for welcome wizard
+//   - createdAt: string (required) - ISO 8601 creation timestamp
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "dharypaypal@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'displayName', 'email', 'photoURL', 'bio', 'role', 'points', 'isNewUser', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.email == request.auth.token.email &&
+             isValidEmail(data.email) &&
+             (data.role == 'user' || data.role == 'admin') &&
+             data.points is number &&
+             data.isNewUser is bool &&
+             data.createdAt is string;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      // Users can only read their own profile
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // Users can create their own profile if it doesn't exist
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
+                    (request.resource.data.role == 'user' || isAdmin());
+      
+      // Users can update their own profile, but cannot change their role or points unless admin
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) &&
+                    request.resource.data.role == resource.data.role &&
+                    request.resource.data.points == resource.data.points &&
+                    request.resource.data.uid == resource.data.uid &&
+                    request.resource.data.email == resource.data.email &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+                    
+      // Admins can update anything
+      allow update: if isAdmin() && isValidUser(request.resource.data);
+      
+      allow delete: if isAdmin();
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

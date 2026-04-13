@@ -25,15 +25,37 @@ import {
   Users,
   MessageSquare,
   Search,
-  Bell
+  Bell,
+  Moon,
+  Sun,
+  Monitor,
+  Mail,
+  Smartphone,
+  LogOut,
+  ShieldCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { 
+  auth, 
+  db, 
+  googleProvider, 
+  signInWithPopup, 
+  signOut, 
+  onAuthStateChanged, 
+  doc, 
+  getDoc, 
+  setDoc, 
+  updateDoc, 
+  onSnapshot,
+  FirebaseUser
+} from './firebase';
 
 // --- Types ---
 
-type Screen = 'HOME' | 'APP_DETAILS' | 'TESTING_FLOW' | 'MY_POINTS' | 'MY_APPS' | 'REVIEW_PANEL' | 'ADD_APP' | 'PROFILE' | 'MY_SUBMISSIONS';
+type Screen = 'HOME' | 'APP_DETAILS' | 'TESTING_FLOW' | 'MY_POINTS' | 'MY_APPS' | 'REVIEW_PANEL' | 'ADD_APP' | 'PROFILE' | 'MY_SUBMISSIONS' | 'ACCOUNT_SETTINGS' | 'NOTIFICATIONS' | 'APPEARANCE' | 'LOGIN' | 'WELCOME_WIZARD';
 type Language = 'en' | 'ar';
 type SubmissionStatus = 'pending' | 'approved' | 'rejected';
+type Theme = 'light' | 'dark' | 'system';
 
 const translations = {
   en: {
@@ -127,7 +149,6 @@ const translations = {
     accountSettings: "Account Settings",
     notifications: "Notifications",
     appearance: "Appearance",
-    logout: "Logout",
     language: "Language",
     arabic: "العربية",
     english: "English",
@@ -135,7 +156,33 @@ const translations = {
     points: "Points",
     myApps: "My Apps",
     submissionSuccess: "Submission successful!",
-    appSubmitted: "App submitted for review!"
+    appSubmitted: "App submitted for review!",
+    light: "Light",
+    dark: "Dark",
+    system: "System",
+    saveChanges: "Save Changes",
+    pushNotifications: "Push Notifications",
+    emailNotifications: "Email Notifications",
+    marketingEmails: "Marketing Emails",
+    themeMode: "Theme Mode",
+    chooseTheme: "Choose your preferred appearance",
+    fullName: "Full Name",
+    emailAddress: "Email Address",
+    bio: "Bio",
+    profileUpdated: "Profile updated successfully!",
+    settingsSaved: "Settings saved!",
+    logout: "Log Out",
+    loginWithGoogle: "Sign in with Google",
+    welcomeTitle: "Welcome to TestSwap!",
+    welcomeDesc: "Join our community of testers and developers. Earn points by testing apps and help others improve their products.",
+    getStarted: "Get Started",
+    joinGroupTitle: "Join our Google Group",
+    joinGroupDesc: "To start testing, you must be a member of our official Google Group. This is required by Google Play for closed testing.",
+    alreadyJoined: "I've already joined",
+    finishSetup: "Finish Setup",
+    loginTitle: "Test & Earn",
+    loginSubtitle: "The ultimate platform for Android app testing exchange.",
+    errorLogin: "Failed to sign in. Please try again.",
   },
   ar: {
     // ... existing translations
@@ -236,7 +283,32 @@ const translations = {
     points: "النقاط",
     myApps: "تطبيقاتي",
     submissionSuccess: "تم الإرسال بنجاح!",
-    appSubmitted: "تم تقديم التطبيق للمراجعة!"
+    appSubmitted: "تم تقديم التطبيق للمراجعة!",
+    light: "فاتح",
+    dark: "داكن",
+    system: "تلقائي",
+    saveChanges: "حفظ التغييرات",
+    pushNotifications: "تنبيهات الهاتف",
+    emailNotifications: "تنبيهات البريد",
+    marketingEmails: "رسائل تسويقية",
+    themeMode: "وضع المظهر",
+    chooseTheme: "اختر المظهر المفضل لديك",
+    fullName: "الاسم الكامل",
+    emailAddress: "البريد الإلكتروني",
+    bio: "نبذة شخصية",
+    profileUpdated: "تم تحديث الملف الشخصي بنجاح!",
+    settingsSaved: "تم حفظ الإعدادات!",
+    loginWithGoogle: "تسجيل الدخول عبر جوجل",
+    welcomeTitle: "مرحباً بك في TestSwap!",
+    welcomeDesc: "انضم إلى مجتمعنا من المختبرين والمطورين. اربح النقاط من خلال اختبار التطبيقات وساعد الآخرين في تحسين منتجاتهم.",
+    getStarted: "ابدأ الآن",
+    joinGroupTitle: "انضم إلى مجموعة جوجل الخاصة بنا",
+    joinGroupDesc: "لبدء الاختبار، يجب أن تكون عضواً في مجموعة جوجل الرسمية الخاصة بنا. هذا متطلب من جوجل بلاي للاختبار المغلق.",
+    alreadyJoined: "لقد انضممت بالفعل",
+    finishSetup: "إنهاء الإعداد",
+    loginTitle: "اختبر واربح",
+    loginSubtitle: "المنصة الأمثل لتبادل اختبار تطبيقات أندرويد.",
+    errorLogin: "فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.",
   }
 };
 
@@ -379,9 +451,9 @@ const Button = ({
   const baseStyles = "flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 disabled:cursor-not-allowed";
   const variants = {
     primary: "gradient-primary text-white shadow-lg shadow-primary-start/20",
-    secondary: "bg-white/10 text-white hover:bg-white/20",
-    outline: "border border-white/10 text-white hover:bg-white/5",
-    ghost: "text-white/60 hover:text-white hover:bg-white/5",
+    secondary: "bg-border text-text hover:bg-border/80",
+    outline: "border border-border text-text hover:bg-border/50",
+    ghost: "text-text-muted hover:text-text hover:bg-border/50",
     danger: "bg-error/20 text-error border border-error/30 hover:bg-error/30"
   };
 
@@ -398,20 +470,98 @@ const Button = ({
 };
 
 export default function App() {
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [userData, setUserData] = useState<any>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [currentScreen, setCurrentScreen] = useState<Screen>('HOME');
   const [selectedApp, setSelectedApp] = useState<AppItem | null>(null);
-  const [points] = useState(1250);
+  const [points, setPoints] = useState(0);
   const [navHistory, setNavHistory] = useState<Screen[]>(['HOME']);
-  const [lang, setLang] = useState<Language>('en');
+  const [lang, setLang] = useState<Language>(() => (localStorage.getItem('lang') as Language) || 'en');
+  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('theme') as Theme) || 'dark');
 
   // Wizard State
   const [wizardStep, setWizardStep] = useState(1);
   const [isGroupJoined, setIsGroupJoined] = useState(false);
   const [isAppInstalled, setIsAppInstalled] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [welcomeStep, setWelcomeStep] = useState(1);
 
   const t = translations[lang];
   const isRtl = lang === 'ar';
+
+  // Auth Listener
+  React.useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(firebaseUser);
+      if (firebaseUser) {
+        // Fetch or create user data
+        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          setUserData(data);
+          setPoints(data.points || 0);
+          if (data.isNewUser) {
+            setCurrentScreen('WELCOME_WIZARD');
+          }
+        } else {
+          // New user
+          const newData = {
+            uid: firebaseUser.uid,
+            displayName: firebaseUser.displayName,
+            email: firebaseUser.email,
+            photoURL: firebaseUser.photoURL,
+            points: 500, // Starting points
+            isNewUser: true,
+            createdAt: new Date().toISOString(),
+            role: 'user'
+          };
+          await setDoc(doc(db, 'users', firebaseUser.uid), newData);
+          setUserData(newData);
+          setPoints(500);
+          setCurrentScreen('WELCOME_WIZARD');
+        }
+      } else {
+        setUserData(null);
+        setPoints(0);
+        setCurrentScreen('LOGIN');
+      }
+      setIsAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Persistence
+  React.useEffect(() => {
+    localStorage.setItem('lang', lang);
+  }, [lang]);
+
+  React.useEffect(() => {
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  React.useEffect(() => {
+    const root = window.document.documentElement;
+    const applyTheme = (t: Theme) => {
+      if (t === 'system') {
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        root.classList.remove('light', 'dark');
+        root.classList.add(systemTheme);
+      } else {
+        root.classList.remove('light', 'dark');
+        root.classList.add(t);
+      }
+    };
+
+    applyTheme(theme);
+
+    if (theme === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = () => applyTheme('system');
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+  }, [theme]);
 
   const navigate = (screen: Screen) => {
     setNavHistory(prev => [...prev, screen]);
@@ -427,7 +577,110 @@ export default function App() {
     }
   };
 
+  const handleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      console.error("Login error:", error);
+      alert(t.errorLogin);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
+
+  const completeWelcomeWizard = async () => {
+    if (user) {
+      await updateDoc(doc(db, 'users', user.uid), { isNewUser: false });
+      setUserData({ ...userData, isNewUser: false });
+      navigate('HOME');
+    }
+  };
+
   // --- Screen Renderers ---
+
+  const renderLogin = () => (
+    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-8">
+      <div className="w-24 h-24 rounded-3xl gradient-primary flex items-center justify-center shadow-2xl shadow-primary-start/40">
+        <Layout size={48} className="text-white" />
+      </div>
+      <div className="space-y-2">
+        <h1 className="text-4xl font-bold tracking-tight">{t.loginTitle}</h1>
+        <p className="text-text-muted max-w-xs mx-auto">{t.loginSubtitle}</p>
+      </div>
+      <Button onClick={handleLogin} className="w-full max-w-xs py-4" icon={Mail}>
+        {t.loginWithGoogle}
+      </Button>
+    </div>
+  );
+
+  const renderWelcomeWizard = () => {
+    return (
+      <div className="flex-1 flex flex-col p-6 space-y-8 overflow-y-auto no-scrollbar">
+        <div className="max-w-md mx-auto w-full flex-1 flex flex-col justify-center space-y-8">
+          <AnimatePresence mode="wait">
+            {welcomeStep === 1 && (
+              <motion.div
+                key="step1"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="text-center space-y-6"
+              >
+                <div className="w-20 h-20 rounded-full bg-success/10 flex items-center justify-center mx-auto text-success">
+                  <Star size={40} />
+                </div>
+                <div className="space-y-2">
+                  <h1 className="text-2xl font-bold">{t.welcomeTitle}</h1>
+                  <p className="text-text-muted leading-relaxed">{t.welcomeDesc}</p>
+                </div>
+                <Button onClick={() => setWelcomeStep(2)} className="w-full py-4">{t.getStarted}</Button>
+              </motion.div>
+            )}
+
+            {welcomeStep === 2 && (
+              <motion.div
+                key="step2"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <div className="text-center space-y-2">
+                  <div className="w-20 h-20 rounded-full bg-primary-start/10 flex items-center justify-center mx-auto text-primary-start">
+                    <ShieldCheck size={40} />
+                  </div>
+                  <h1 className="text-2xl font-bold">{t.joinGroupTitle}</h1>
+                  <p className="text-text-muted text-sm">{t.joinGroupDesc}</p>
+                </div>
+
+                <div className="glass-card p-6 space-y-4">
+                  <div className="p-4 bg-border rounded-xl font-mono text-xs text-primary-start break-all">
+                    https://groups.google.com/g/test-swap
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    className="w-full" 
+                    icon={ExternalLink}
+                    onClick={() => window.open('https://groups.google.com/g/test-swap', '_blank')}
+                  >
+                    {t.openGroup}
+                  </Button>
+                </div>
+
+                <Button onClick={completeWelcomeWizard} className="w-full py-4">{t.finishSetup}</Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    );
+  };
 
   const renderHome = () => (
     <div className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-6 pb-24">
@@ -435,20 +688,20 @@ export default function App() {
         <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t.exploreApps}</h1>
-          <p className="text-white/50 text-sm">{t.earnPoints}</p>
+          <p className="text-text-muted text-sm">{t.earnPoints}</p>
         </div>
-        <button className="p-2 bg-white/5 rounded-full relative">
+        <button className="p-2 bg-border rounded-full relative">
           <Bell size={20} />
           <span className={`absolute top-1 ${isRtl ? 'left-1' : 'right-1'} w-2 h-2 bg-accent rounded-full border-2 border-background`}></span>
         </button>
       </header>
 
       <div className="relative">
-        <Search className={`absolute ${isRtl ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 text-white/30`} size={18} />
+        <Search className={`absolute ${isRtl ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 text-text-muted`} size={18} />
         <input 
           type="text" 
           placeholder={t.searchPlaceholder} 
-          className={`w-full bg-white/5 border border-white/10 rounded-xl py-3 ${isRtl ? 'pr-10 pl-4' : 'pl-10 pr-4'} focus:outline-none focus:border-primary-start/50 transition-colors`}
+          className={`w-full bg-border border border-border rounded-xl py-3 ${isRtl ? 'pr-10 pl-4' : 'pl-10 pr-4'} focus:outline-none focus:border-primary-start/50 transition-colors`}
         />
       </div>
 
@@ -472,12 +725,12 @@ export default function App() {
                 <h3 className="font-bold truncate">{appName}</h3>
                 <div className="flex items-center gap-2 mt-1">
                   <Badge variant="accent">+{app.reward} {t.pts}</Badge>
-                  <span className="text-white/40 text-xs flex items-center gap-1">
+                  <span className="text-text-muted text-xs flex items-center gap-1">
                     <Users size={12} /> {app.testersCount}/{app.testersNeeded}
                   </span>
                 </div>
               </div>
-              <ChevronRight className={`text-white/20 ${isRtl ? 'rotate-180' : ''}`} size={20} />
+              <ChevronRight className={`text-text-muted ${isRtl ? 'rotate-180' : ''}`} size={20} />
             </motion.div>
           );
         })}
@@ -519,7 +772,7 @@ export default function App() {
 
           <div className="space-y-3">
             <h2 className="font-bold text-lg">{t.description}</h2>
-            <p className="text-white/60 leading-relaxed">{appDesc}</p>
+            <p className="text-text-muted leading-relaxed">{appDesc}</p>
           </div>
 
           <div className="glass-card p-5 space-y-4">
@@ -529,7 +782,7 @@ export default function App() {
             </h2>
             <div className="space-y-3">
               {appInst?.split('\n').map((line, i) => (
-                <p key={i} className="text-sm text-white/70 flex gap-3">
+                <p key={i} className="text-sm text-text-muted flex gap-3">
                   <span className="text-primary-start font-bold">{i + 1}.</span>
                   {line.replace(/^\d+\.\s*/, '')}
                 </p>
@@ -579,7 +832,7 @@ export default function App() {
       <div className="flex-1 p-6 space-y-8 overflow-y-auto no-scrollbar pb-24">
         <div className="max-w-2xl mx-auto w-full space-y-8">
           <header className="flex items-center gap-4">
-          <button onClick={goBack} className="p-2 bg-white/5 rounded-full">
+          <button onClick={goBack} className="p-2 bg-border rounded-full">
             <ArrowLeft size={20} className={isRtl ? 'rotate-180' : ''} />
           </button>
           <h1 className="text-xl font-bold">{t.testingFlow}</h1>
@@ -591,13 +844,13 @@ export default function App() {
             <React.Fragment key={step.id}>
               <div className="flex flex-col items-center gap-2">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
-                  wizardStep >= step.id ? 'bg-primary-start text-white' : 'bg-white/10 text-white/30'
+                  wizardStep >= step.id ? 'bg-primary-start text-white' : 'bg-border text-text-muted'
                 }`}>
                   {wizardStep > step.id ? <Check size={16} /> : step.id}
                 </div>
               </div>
               {idx < steps.length - 1 && (
-                <div className="flex-1 h-[2px] mx-2 bg-white/10 relative">
+                <div className="flex-1 h-[2px] mx-2 bg-border relative">
                   <motion.div 
                     className="absolute inset-0 bg-primary-start"
                     initial={{ width: 0 }}
@@ -621,9 +874,19 @@ export default function App() {
 
             {wizardStep === 1 && (
               <div className="glass-card p-6 space-y-6">
-                <p className="text-white/70 leading-relaxed">{t.joinedGroup}</p>
-                <Button variant="outline" className="w-full" icon={ExternalLink}>{t.openGroup}</Button>
-                <label className="flex items-center gap-3 p-4 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
+                <div className="space-y-2">
+                  <p className="text-text-muted leading-relaxed">{t.joinedGroup}</p>
+                  <p className="text-xs text-primary-start font-mono">test-swap@googlegroups.com</p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  className="w-full" 
+                  icon={ExternalLink}
+                  onClick={() => window.open('https://groups.google.com/g/test-swap', '_blank')}
+                >
+                  {t.openGroup}
+                </Button>
+                <label className="flex items-center gap-3 p-4 bg-border rounded-xl cursor-pointer hover:bg-border/80 transition-colors">
                   <input 
                     type="checkbox" 
                     checked={isGroupJoined}
@@ -637,8 +900,8 @@ export default function App() {
 
             {wizardStep === 2 && (
               <div className="glass-card p-6 space-y-6">
-                <p className="text-white/70 leading-relaxed">{t.installAppDesc}</p>
-                <div className="p-4 bg-black/20 rounded-xl border border-white/5 font-mono text-xs break-all text-primary-start">
+                <p className="text-text-muted leading-relaxed">{t.installAppDesc}</p>
+                <div className="p-4 bg-black/5 rounded-xl border border-border font-mono text-xs break-all text-primary-start">
                   https://play.google.com/store/apps/details?id=com.example.app
                 </div>
                 <Button variant="outline" className="w-full" icon={ExternalLink}>{t.openAppLink}</Button>
@@ -647,12 +910,12 @@ export default function App() {
 
             {wizardStep === 3 && (
               <div className="glass-card p-6 space-y-6">
-                <p className="text-white/70 leading-relaxed">{t.haveInstalled}</p>
-                <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+                <p className="text-text-muted leading-relaxed">{t.haveInstalled}</p>
+                <div className="flex items-center justify-between p-4 bg-border rounded-xl">
                   <span className="text-sm font-medium">{t.no}</span>
                   <button 
                     onClick={() => setIsAppInstalled(!isAppInstalled)}
-                    className={`w-14 h-8 rounded-full p-1 transition-colors duration-300 ${isAppInstalled ? 'bg-success' : 'bg-white/10'}`}
+                    className={`w-14 h-8 rounded-full p-1 transition-colors duration-300 ${isAppInstalled ? 'bg-success' : 'bg-border'}`}
                   >
                     <div className={`w-6 h-6 bg-white rounded-full transition-transform duration-300 ${isAppInstalled ? (isRtl ? '-translate-x-6' : 'translate-x-6') : 'translate-x-0'}`} />
                   </button>
@@ -674,7 +937,7 @@ export default function App() {
                     <span>{t.haveInstalled}</span>
                   </div>
                 </div>
-                <p className="text-xs text-white/40 italic">By submitting, you confirm that you have followed all instructions correctly.</p>
+                <p className="text-xs text-text-muted italic">By submitting, you confirm that you have followed all instructions correctly.</p>
               </div>
             )}
           </motion.div>
@@ -687,7 +950,7 @@ export default function App() {
             className={`w-full py-4 text-lg ${isSubmitting ? 'opacity-70' : ''}`}
           >
             {isSubmitting ? (
-              <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <div className="w-6 h-6 border-2 border-primary-start/30 border-t-primary-start rounded-full animate-spin" />
             ) : (
               wizardStep === 4 ? t.submitForApproval : t.seeAll.replace(t.seeAll, isRtl ? 'التالي' : 'Next')
             )}
@@ -695,7 +958,7 @@ export default function App() {
           {wizardStep > 1 && (
             <button 
               onClick={() => setWizardStep(wizardStep - 1)}
-              className="w-full py-4 text-white/40 text-sm font-medium hover:text-white transition-colors"
+              className="w-full py-4 text-text-muted text-sm font-medium hover:text-text transition-colors"
             >
               {isRtl ? 'السابق' : 'Previous'}
             </button>
@@ -711,24 +974,24 @@ export default function App() {
       <div className="max-w-4xl mx-auto w-full space-y-8">
         <header className="text-center space-y-2">
         <h1 className="text-xl font-bold">{t.myPoints}</h1>
-        <p className="text-white/50 text-sm">{t.trackEarnings}</p>
+        <p className="text-text-muted text-sm">{t.trackEarnings}</p>
       </header>
 
       <div className="gradient-primary rounded-3xl p-8 text-center space-y-2 shadow-2xl shadow-primary-start/30">
         <div className="inline-flex p-3 bg-white/20 rounded-2xl mb-2">
           <Coins size={32} className="text-white" />
         </div>
-        <div className="text-5xl font-bold">{points.toLocaleString()}</div>
+        <div className="text-5xl font-bold text-white">{points.toLocaleString()}</div>
         <p className="text-white/70 font-medium">{t.availableBalance}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="glass-card p-4 space-y-1">
-          <p className="text-xs text-white/40 uppercase font-bold">{t.totalEarned}</p>
+          <p className="text-xs text-text-muted uppercase font-bold">{t.totalEarned}</p>
           <p className="text-xl font-bold text-success">2,450</p>
         </div>
         <div className="glass-card p-4 space-y-1">
-          <p className="text-xs text-white/40 uppercase font-bold">{t.pending}</p>
+          <p className="text-xs text-text-muted uppercase font-bold">{t.pending}</p>
           <p className="text-xl font-bold text-accent">125</p>
         </div>
       </div>
@@ -746,7 +1009,7 @@ export default function App() {
                   </div>
                   <div>
                     <h4 className="font-bold text-sm">{appName}</h4>
-                    <p className="text-xs text-white/40">{item.date}</p>
+                    <p className="text-xs text-text-muted">{item.date}</p>
                   </div>
                 </div>
                 <div className={isRtl ? 'text-left' : 'text-right'}>
@@ -768,7 +1031,7 @@ export default function App() {
         <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">{t.devConsole}</h1>
-          <p className="text-white/50 text-sm">{t.manageApps}</p>
+          <p className="text-text-muted text-sm">{t.manageApps}</p>
         </div>
         <Button onClick={() => navigate('ADD_APP')} variant="primary" className="p-3 rounded-full" icon={Plus}></Button>
       </header>
@@ -778,14 +1041,14 @@ export default function App() {
           <BarChart3 size={20} className="text-primary-start" />
           <div>
             <p className="text-2xl font-bold">3</p>
-            <p className="text-xs text-white/40">{t.activeApps}</p>
+            <p className="text-xs text-text-muted">{t.activeApps}</p>
           </div>
         </div>
         <div className="glass-card p-4 space-y-2">
           <Users size={20} className="text-accent" />
           <div>
             <p className="text-2xl font-bold">42</p>
-            <p className="text-xs text-white/40">{t.totalTesters}</p>
+            <p className="text-xs text-text-muted">{t.totalTesters}</p>
           </div>
         </div>
       </div>
@@ -799,19 +1062,19 @@ export default function App() {
                 <img src={app.icon} alt={app.name} className="w-12 h-12 rounded-xl" referrerPolicy="no-referrer" />
                 <div className="flex-1">
                   <h3 className="font-bold">{app.name}</h3>
-                  <p className="text-xs text-white/40">{t.submittedOn} Mar 15, 2024</p>
+                  <p className="text-xs text-text-muted">{t.submittedOn} Mar 15, 2024</p>
                 </div>
-                <button onClick={() => navigate('REVIEW_PANEL')} className="p-2 bg-white/5 rounded-lg text-accent relative">
+                <button onClick={() => navigate('REVIEW_PANEL')} className="p-2 bg-border rounded-lg text-accent relative">
                   <MessageSquare size={18} />
                   <span className={`absolute -top-1 ${isRtl ? '-left-1' : '-right-1'} w-4 h-4 bg-error text-[10px] font-bold flex items-center justify-center rounded-full text-white`}>2</span>
                 </button>
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-medium">
-                  <span className="text-white/50">{t.testersProgress}</span>
+                  <span className="text-text-muted">{t.testersProgress}</span>
                   <span>{app.testersCount}/{app.testersNeeded}</span>
                 </div>
-                <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                <div className="h-2 bg-border rounded-full overflow-hidden">
                   <div 
                     className="h-full gradient-primary" 
                     style={{ width: `${(app.testersCount / app.testersNeeded) * 100}%` }}
@@ -830,26 +1093,26 @@ export default function App() {
     <div className="flex-1 p-6 space-y-8 overflow-y-auto no-scrollbar pb-24">
       <div className="max-w-4xl mx-auto w-full space-y-8">
         <header className="flex items-center gap-4">
-        <button onClick={goBack} className="p-2 bg-white/5 rounded-full">
+        <button onClick={goBack} className="p-2 bg-border rounded-full">
           <ArrowLeft size={20} className={isRtl ? 'rotate-180' : ''} />
         </button>
         <div>
           <h1 className="text-xl font-bold">{t.reviewSubmissions}</h1>
-          <p className="text-white/50 text-sm">DevFlow Pro</p>
+          <p className="text-text-muted text-sm">DevFlow Pro</p>
         </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {MOCK_SUBMISSIONS.map(sub => (
           <div key={sub.id} className="glass-card overflow-hidden">
-            <div className="p-4 flex items-center justify-between border-b border-white/5">
+            <div className="p-4 flex items-center justify-between border-b border-border">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-start to-accent flex items-center justify-center font-bold text-sm">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-start to-accent flex items-center justify-center font-bold text-sm text-white">
                   {sub.testerName.charAt(0)}
                 </div>
                 <div>
                   <h4 className="font-bold text-sm">{sub.testerName}</h4>
-                  <div className="flex items-center gap-1 text-[10px] text-white/40">
+                  <div className="flex items-center gap-1 text-[10px] text-text-muted">
                     <Star size={10} className="text-yellow-500 fill-yellow-500" />
                     {sub.testerReputation} {t.reputation}
                   </div>
@@ -863,21 +1126,21 @@ export default function App() {
             <div className="p-4 space-y-4">
               <div className="grid grid-cols-1 gap-2">
                 <div className="space-y-1">
-                  <p className="text-[10px] text-white/30 uppercase font-bold">{t.testerEmail}</p>
-                  <p className="text-sm text-white/80">{sub.testerEmail}</p>
+                  <p className="text-[10px] text-text-muted uppercase font-bold">{t.testerEmail}</p>
+                  <p className="text-sm text-text">{sub.testerEmail}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-[10px] text-white/30 uppercase font-bold">{t.submissionTime}</p>
-                  <p className="text-sm text-white/80">{sub.submittedAt}</p>
+                  <p className="text-[10px] text-text-muted uppercase font-bold">{t.submissionTime}</p>
+                  <p className="text-sm text-text">{sub.submittedAt}</p>
                 </div>
               </div>
 
               {sub.answers && sub.answers.length > 0 && (
                 <div className="space-y-2">
-                  <h5 className="text-[10px] font-bold text-white/40 uppercase">{t.answers}</h5>
+                  <h5 className="text-[10px] font-bold text-text-muted uppercase">{t.answers}</h5>
                   <div className="space-y-2">
                     {sub.answers.map((ans, i) => (
-                      <div key={i} className="bg-white/5 p-3 rounded-lg text-sm text-white/80">
+                      <div key={i} className="bg-border p-3 rounded-lg text-sm text-text">
                         {ans}
                       </div>
                     ))}
@@ -914,12 +1177,12 @@ export default function App() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {MOCK_SUBMISSIONS.map(sub => (
           <div key={sub.id} className="glass-card p-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-primary-start">
+            <div className="w-12 h-12 rounded-xl bg-border flex items-center justify-center text-primary-start">
               <Layout size={24} />
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-bold truncate">{sub.appName}</h3>
-              <p className="text-xs text-white/40">{sub.submittedAt}</p>
+              <p className="text-xs text-text-muted">{sub.submittedAt}</p>
             </div>
             <Badge variant={sub.status === 'pending' ? 'warning' : sub.status === 'approved' ? 'success' : 'error'}>
               {sub.status === 'pending' ? t.statusPending : sub.status === 'approved' ? t.statusApproved : t.statusRejected}
@@ -935,7 +1198,7 @@ export default function App() {
     <div className="flex-1 p-6 space-y-8 overflow-y-auto no-scrollbar pb-24">
       <div className="max-w-4xl mx-auto w-full space-y-8">
         <header className="flex items-center gap-4">
-        <button onClick={goBack} className="p-2 bg-white/5 rounded-full">
+        <button onClick={goBack} className="p-2 bg-border rounded-full">
           <ArrowLeft size={20} className={isRtl ? 'rotate-180' : ''} />
         </button>
         <h1 className="text-xl font-bold">{t.addNewApp}</h1>
@@ -943,31 +1206,31 @@ export default function App() {
 
       <div className="space-y-6">
         <div className="flex justify-center">
-          <div className="w-24 h-24 rounded-3xl border-2 border-dashed border-white/10 flex flex-col items-center justify-center gap-2 bg-white/5 cursor-pointer hover:bg-white/10 transition-colors">
-            <Plus size={24} className="text-white/30" />
-            <span className="text-[10px] text-white/30 font-bold uppercase">Icon</span>
+          <div className="w-24 h-24 rounded-3xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 bg-border cursor-pointer hover:bg-border/80 transition-colors">
+            <Plus size={24} className="text-text-muted" />
+            <span className="text-[10px] text-text-muted font-bold uppercase">Icon</span>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-white/70">{t.appName}</label>
-              <input type="text" placeholder={t.enterAppName} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 focus:outline-none focus:border-primary-start/50" />
+              <label className="text-sm font-medium text-text">{t.appName}</label>
+              <input type="text" placeholder={t.enterAppName} className="w-full bg-border border border-border rounded-xl py-3 px-4 focus:outline-none focus:border-primary-start/50" />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-white/70">{t.appDescription}</label>
-              <textarea placeholder={t.whatDoesAppDo} className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm focus:outline-none focus:border-primary-start/50 h-32 resize-none"></textarea>
+              <label className="text-sm font-medium text-text">{t.appDescription}</label>
+              <textarea placeholder={t.whatDoesAppDo} className="w-full bg-border border border-border rounded-xl p-4 text-sm focus:outline-none focus:border-primary-start/50 h-32 resize-none"></textarea>
             </div>
           </div>
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-white/70">{t.googleGroupLink}</label>
-              <input type="text" placeholder="https://groups.google.com/..." className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 focus:outline-none focus:border-primary-start/50" />
+              <label className="text-sm font-medium text-text">{t.googleGroupLink}</label>
+              <input type="text" defaultValue="https://groups.google.com/g/test-swap" className="w-full bg-border border border-border rounded-xl py-3 px-4 focus:outline-none focus:border-primary-start/50" />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-white/70">{t.requiredTesters}</label>
-              <div className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10">
+              <label className="text-sm font-medium text-text">{t.requiredTesters}</label>
+              <div className="flex items-center gap-4 p-4 bg-border rounded-xl border border-border">
                 <input type="range" min="5" max="50" className="flex-1 accent-primary-start" />
                 <span className="font-bold text-primary-start">20</span>
               </div>
@@ -977,7 +1240,7 @@ export default function App() {
                 <span className="text-sm font-medium">{t.costToPublish}</span>
                 <span className="font-bold text-accent">500 {t.pts}</span>
               </div>
-              <div className="flex items-center justify-between text-xs text-white/40">
+              <div className="flex items-center justify-between text-xs text-text-muted">
                 <span>{t.yourBalance}</span>
                 <span>{points} {t.pts}</span>
               </div>
@@ -991,12 +1254,181 @@ export default function App() {
     </div>
   );
 
+  const renderAccountSettings = () => (
+    <div className="flex-1 p-6 space-y-8 overflow-y-auto no-scrollbar pb-24">
+      <div className="max-w-2xl mx-auto w-full space-y-8">
+        <header className="flex items-center gap-4">
+          <button onClick={goBack} className="p-2 bg-border rounded-full">
+            <ArrowLeft size={20} className={isRtl ? 'rotate-180' : ''} />
+          </button>
+          <h1 className="text-xl font-bold">{t.accountSettings}</h1>
+        </header>
+
+        <div className="flex flex-col items-center gap-4 p-6 glass-card">
+          <div className="relative">
+            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary-start to-accent p-1">
+              <div className="w-full h-full rounded-full bg-background flex items-center justify-center overflow-hidden">
+                <img src="https://picsum.photos/seed/user/200/200" alt="Avatar" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              </div>
+            </div>
+            <button className="absolute bottom-0 right-0 p-2 bg-primary-start text-white rounded-full border-4 border-background shadow-lg">
+              <Upload size={14} />
+            </button>
+          </div>
+          <div className="text-center">
+            <h2 className="text-lg font-bold">Layla Almansouri</h2>
+            <p className="text-sm text-text-muted">dharypaypal@gmail.com</p>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-text-muted">{t.fullName}</label>
+              <input type="text" defaultValue="Layla Almansouri" className="w-full bg-border border border-border rounded-xl py-3 px-4 focus:outline-none focus:border-primary-start/50" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-text-muted">{t.emailAddress}</label>
+              <input type="email" defaultValue="dharypaypal@gmail.com" className="w-full bg-border border border-border rounded-xl py-3 px-4 focus:outline-none focus:border-primary-start/50" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-text-muted">{t.bio}</label>
+              <textarea defaultValue="Senior Android Developer" className="w-full bg-border border border-border rounded-xl p-4 text-sm focus:outline-none focus:border-primary-start/50 h-32 resize-none"></textarea>
+            </div>
+          </div>
+
+          <Button onClick={() => { alert(t.profileUpdated); goBack(); }} className="w-full py-4">{t.saveChanges}</Button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderNotifications = () => (
+    <div className="flex-1 p-6 space-y-8 overflow-y-auto no-scrollbar pb-24">
+      <div className="max-w-2xl mx-auto w-full space-y-8">
+        <header className="flex items-center gap-4">
+          <button onClick={goBack} className="p-2 bg-border rounded-full">
+            <ArrowLeft size={20} className={isRtl ? 'rotate-180' : ''} />
+          </button>
+          <h1 className="text-xl font-bold">{t.notifications}</h1>
+        </header>
+
+        <div className="space-y-4">
+          <div className="glass-card p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary-start/10 text-primary-start rounded-xl">
+                <Smartphone size={20} />
+              </div>
+              <div>
+                <p className="font-medium text-sm">{t.pushNotifications}</p>
+              </div>
+            </div>
+            <button className="w-12 h-6 bg-primary-start rounded-full p-1 flex items-center justify-end">
+              <div className="w-4 h-4 bg-white rounded-full" />
+            </button>
+          </div>
+
+          <div className="glass-card p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-accent/10 text-accent rounded-xl">
+                <Mail size={20} />
+              </div>
+              <div>
+                <p className="font-medium text-sm">{t.emailNotifications}</p>
+              </div>
+            </div>
+            <button className="w-12 h-6 bg-primary-start rounded-full p-1 flex items-center justify-end">
+              <div className="w-4 h-4 bg-white rounded-full" />
+            </button>
+          </div>
+
+          <div className="glass-card p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-success/10 text-success rounded-xl">
+                <Bell size={20} />
+              </div>
+              <div>
+                <p className="font-medium text-sm">{t.marketingEmails}</p>
+              </div>
+            </div>
+            <button className="w-12 h-6 bg-border rounded-full p-1 flex items-center justify-start">
+              <div className="w-4 h-4 bg-white rounded-full" />
+            </button>
+          </div>
+        </div>
+
+        <Button onClick={() => { alert(t.settingsSaved); goBack(); }} className="w-full py-4">{t.saveChanges}</Button>
+      </div>
+    </div>
+  );
+
+  const renderAppearance = () => (
+    <div className="flex-1 p-6 space-y-8 overflow-y-auto no-scrollbar pb-24">
+      <div className="max-w-2xl mx-auto w-full space-y-8">
+        <header className="flex items-center gap-4">
+          <button onClick={goBack} className="p-2 bg-border rounded-full">
+            <ArrowLeft size={20} className={isRtl ? 'rotate-180' : ''} />
+          </button>
+          <h1 className="text-xl font-bold">{t.appearance}</h1>
+        </header>
+
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <h2 className="font-bold text-lg">{t.themeMode}</h2>
+            <p className="text-sm text-text-muted">{t.chooseTheme}</p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            <button 
+              onClick={() => setTheme('light')}
+              className={`glass-card p-4 flex items-center justify-between transition-all ${theme === 'light' ? 'border-primary-start bg-primary-start/5' : ''}`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-xl ${theme === 'light' ? 'bg-primary-start text-white' : 'bg-border text-text-muted'}`}>
+                  <Sun size={20} />
+                </div>
+                <span className="font-medium">{t.light}</span>
+              </div>
+              {theme === 'light' && <CheckCircle2 size={20} className="text-primary-start" />}
+            </button>
+
+            <button 
+              onClick={() => setTheme('dark')}
+              className={`glass-card p-4 flex items-center justify-between transition-all ${theme === 'dark' ? 'border-primary-start bg-primary-start/5' : ''}`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-xl ${theme === 'dark' ? 'bg-primary-start text-white' : 'bg-border text-text-muted'}`}>
+                  <Moon size={20} />
+                </div>
+                <span className="font-medium">{t.dark}</span>
+              </div>
+              {theme === 'dark' && <CheckCircle2 size={20} className="text-primary-start" />}
+            </button>
+
+            <button 
+              onClick={() => setTheme('system')}
+              className={`glass-card p-4 flex items-center justify-between transition-all ${theme === 'system' ? 'border-primary-start bg-primary-start/5' : ''}`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-xl ${theme === 'system' ? 'bg-primary-start text-white' : 'bg-border text-text-muted'}`}>
+                  <Monitor size={20} />
+                </div>
+                <span className="font-medium">{t.system}</span>
+              </div>
+              {theme === 'system' && <CheckCircle2 size={20} className="text-primary-start" />}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderProfile = () => (
     <div className="flex-1 p-6 space-y-8 overflow-y-auto no-scrollbar pb-24">
       <div className="max-w-2xl mx-auto w-full space-y-8">
         <header className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{t.profile}</h1>
-        <button className="p-2 bg-white/5 rounded-full"><Settings size={20} /></button>
+        <button className="p-2 bg-border rounded-full"><Settings size={20} /></button>
       </header>
 
       <div className="text-center space-y-4">
@@ -1012,43 +1444,43 @@ export default function App() {
         </div>
         <div>
           <h2 className="text-xl font-bold">Layla Almansouri</h2>
-          <p className="text-white/50 text-sm">Senior Android Developer</p>
+          <p className="text-text-muted text-sm">Senior Android Developer</p>
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
         <div className="glass-card p-3 text-center">
           <p className="text-lg font-bold">4.9</p>
-          <p className="text-[10px] text-white/40 uppercase font-bold">{t.reputation}</p>
+          <p className="text-[10px] text-text-muted uppercase font-bold">{t.reputation}</p>
         </div>
         <div className="glass-card p-3 text-center">
           <p className="text-lg font-bold">24</p>
-          <p className="text-[10px] text-white/40 uppercase font-bold">{t.tests}</p>
+          <p className="text-[10px] text-text-muted uppercase font-bold">{t.tests}</p>
         </div>
         <div className="glass-card p-3 text-center">
           <p className="text-lg font-bold">3</p>
-          <p className="text-[10px] text-white/40 uppercase font-bold">{t.apps}</p>
+          <p className="text-[10px] text-text-muted uppercase font-bold">{t.apps}</p>
         </div>
       </div>
 
       <div className="space-y-2">
         <div className="glass-card p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-white/5 rounded-xl text-white/60">
+            <div className="p-2 bg-border rounded-xl text-text-muted">
               <Settings size={20} />
             </div>
             <span className="font-medium">{t.language}</span>
           </div>
-          <div className="flex bg-white/5 rounded-lg p-1">
+          <div className="flex bg-border rounded-lg p-1">
             <button 
               onClick={() => setLang('en')}
-              className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${lang === 'en' ? 'bg-primary-start text-white' : 'text-white/40'}`}
+              className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${lang === 'en' ? 'bg-primary-start text-white' : 'text-text-muted'}`}
             >
               EN
             </button>
             <button 
               onClick={() => setLang('ar')}
-              className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${lang === 'ar' ? 'bg-primary-start text-white' : 'text-white/40'}`}
+              className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${lang === 'ar' ? 'bg-primary-start text-white' : 'text-text-muted'}`}
             >
               AR
             </button>
@@ -1060,18 +1492,18 @@ export default function App() {
           icon={CheckCircle2}
           onClick={() => navigate('MY_SUBMISSIONS')}
         >
-          {t.mySubmissions} <ChevronRight size={18} className={`text-white/20 group-hover:text-white transition-colors ${isRtl ? 'rotate-180' : ''}`} />
+          {t.mySubmissions} <ChevronRight size={18} className={`text-text-muted group-hover:text-text transition-colors ${isRtl ? 'rotate-180' : ''}`} />
         </Button>
-        <Button variant="ghost" className="w-full justify-between group" icon={User}>
-          {t.accountSettings} <ChevronRight size={18} className={`text-white/20 group-hover:text-white transition-colors ${isRtl ? 'rotate-180' : ''}`} />
+        <Button variant="ghost" className="w-full justify-between group" icon={User} onClick={() => navigate('ACCOUNT_SETTINGS')}>
+          {t.accountSettings} <ChevronRight size={18} className={`text-text-muted group-hover:text-text transition-colors ${isRtl ? 'rotate-180' : ''}`} />
         </Button>
-        <Button variant="ghost" className="w-full justify-between group" icon={Bell}>
-          {t.notifications} <ChevronRight size={18} className={`text-white/20 group-hover:text-white transition-colors ${isRtl ? 'rotate-180' : ''}`} />
+        <Button variant="ghost" className="w-full justify-between group" icon={Bell} onClick={() => navigate('NOTIFICATIONS')}>
+          {t.notifications} <ChevronRight size={18} className={`text-text-muted group-hover:text-text transition-colors ${isRtl ? 'rotate-180' : ''}`} />
         </Button>
-        <Button variant="ghost" className="w-full justify-between group" icon={Layout}>
-          {t.appearance} <ChevronRight size={18} className={`text-white/20 group-hover:text-white transition-colors ${isRtl ? 'rotate-180' : ''}`} />
+        <Button variant="ghost" className="w-full justify-between group" icon={Layout} onClick={() => navigate('APPEARANCE')}>
+          {t.appearance} <ChevronRight size={18} className={`text-text-muted group-hover:text-text transition-colors ${isRtl ? 'rotate-180' : ''}`} />
         </Button>
-        <Button variant="ghost" className="w-full justify-between group text-error hover:bg-error/5" icon={X}>
+        <Button variant="ghost" className="w-full justify-between group text-error hover:bg-error/5" icon={LogOut} onClick={handleLogout}>
           {t.logout}
         </Button>
       </div>
@@ -1079,67 +1511,79 @@ export default function App() {
   </div>
   );
 
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-primary-start border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="app-container" dir={isRtl ? 'rtl' : 'ltr'}>
+    <div className={`min-h-screen bg-background text-text font-sans selection:bg-primary-start/30 ${isRtl ? 'rtl' : 'ltr'}`}>
       {/* Desktop Sidebar */}
-      <aside className="desktop-sidebar">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-lg shadow-primary-start/20">
-            <Layout className="text-white" size={24} />
-          </div>
-          <span className="text-xl font-bold tracking-tight">AppExchange</span>
-        </div>
-
-        <nav className="flex flex-col gap-2">
-          <SidebarItem 
-            active={currentScreen === 'HOME' || currentScreen === 'APP_DETAILS' || currentScreen === 'TESTING_FLOW'} 
-            icon={Home} 
-            label={t.home} 
-            onClick={() => navigate('HOME')} 
-            isRtl={isRtl}
-          />
-          <SidebarItem 
-            active={currentScreen === 'MY_POINTS'} 
-            icon={Coins} 
-            label={t.points} 
-            onClick={() => navigate('MY_POINTS')} 
-            isRtl={isRtl}
-          />
-          <SidebarItem 
-            active={currentScreen === 'MY_APPS' || currentScreen === 'REVIEW_PANEL' || currentScreen === 'ADD_APP'} 
-            icon={Layout} 
-            label={t.myApps} 
-            onClick={() => navigate('MY_APPS')} 
-            isRtl={isRtl}
-          />
-          <SidebarItem 
-            active={currentScreen === 'PROFILE' || currentScreen === 'MY_SUBMISSIONS'} 
-            icon={User} 
-            label={t.profile} 
-            onClick={() => navigate('PROFILE')} 
-            isRtl={isRtl}
-          />
-        </nav>
-
-        <div className="mt-auto">
-          <div className="glass-card p-4 bg-primary-start/5 border-primary-start/10">
-            <p className="text-xs text-white/40 uppercase font-bold mb-1">{t.availableBalance}</p>
-            <p className="text-xl font-bold text-primary-start">{points.toLocaleString()} {t.pts}</p>
-          </div>
-        </div>
-      </aside>
-
-      <div className="main-content">
-        {/* Status Bar Mock - Only on Mobile */}
-        <div className="h-10 px-6 flex items-center justify-between text-[10px] font-bold text-white/40 select-none md:hidden">
-          <span>9:41</span>
-          <div className={`flex items-center gap-1.5 ${isRtl ? 'flex-row-reverse' : ''}`}>
-            <div className="w-4 h-2.5 border border-white/20 rounded-[2px] relative">
-              <div className={`absolute inset-[1px] bg-white/40 ${isRtl ? 'right-0' : 'left-0'} w-2/3`}></div>
+      {user && currentScreen !== 'WELCOME_WIZARD' && (
+        <aside className="desktop-sidebar">
+          <div className="flex items-center gap-3 px-4 mb-8">
+            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-lg shadow-primary-start/20">
+              <Layout size={24} className="text-white" />
             </div>
-            <span>5G</span>
+            <span className="text-xl font-bold tracking-tight">TestSwap</span>
           </div>
-        </div>
+
+          <nav className="flex flex-col gap-2">
+            <SidebarItem 
+              active={currentScreen === 'HOME' || currentScreen === 'APP_DETAILS' || currentScreen === 'TESTING_FLOW'} 
+              icon={Home} 
+              label={t.home} 
+              onClick={() => navigate('HOME')} 
+              isRtl={isRtl}
+            />
+            <SidebarItem 
+              active={currentScreen === 'MY_POINTS'} 
+              icon={Coins} 
+              label={t.points} 
+              onClick={() => navigate('MY_POINTS')} 
+              isRtl={isRtl}
+            />
+            <SidebarItem 
+              active={currentScreen === 'MY_APPS' || currentScreen === 'REVIEW_PANEL' || currentScreen === 'ADD_APP'} 
+              icon={Layout} 
+              label={t.myApps} 
+              onClick={() => navigate('MY_APPS')} 
+              isRtl={isRtl}
+            />
+            <SidebarItem 
+              active={currentScreen === 'PROFILE' || currentScreen === 'MY_SUBMISSIONS' || currentScreen === 'ACCOUNT_SETTINGS' || currentScreen === 'NOTIFICATIONS' || currentScreen === 'APPEARANCE'} 
+              icon={User} 
+              label={t.profile} 
+              onClick={() => navigate('PROFILE')} 
+              isRtl={isRtl}
+            />
+          </nav>
+
+          <div className="mt-auto">
+            <div className="glass-card p-4 bg-primary-start/5 border-primary-start/10">
+              <p className="text-xs text-text-muted uppercase font-bold mb-1">{t.availableBalance}</p>
+              <p className="text-xl font-bold text-primary-start">{points.toLocaleString()} {t.pts}</p>
+            </div>
+          </div>
+        </aside>
+      )}
+
+      <div className={user && currentScreen !== 'WELCOME_WIZARD' ? "main-content" : "w-full min-h-screen flex flex-col"}>
+        {/* Status Bar Mock - Only on Mobile */}
+        {user && currentScreen !== 'WELCOME_WIZARD' && (
+          <div className="h-10 px-6 flex items-center justify-between text-[10px] font-bold text-text-muted select-none md:hidden">
+            <span>9:41</span>
+            <div className={`flex items-center gap-1.5 ${isRtl ? 'flex-row-reverse' : ''}`}>
+              <div className="w-4 h-2.5 border border-border rounded-[2px] relative">
+                <div className={`absolute inset-[1px] bg-text-muted ${isRtl ? 'right-0' : 'left-0'} w-2/3`}></div>
+              </div>
+              <span>5G</span>
+            </div>
+          </div>
+        )}
 
         <main className="flex-1 flex flex-col relative overflow-hidden">
           <AnimatePresence mode="wait">
@@ -1151,49 +1595,58 @@ export default function App() {
               transition={{ duration: 0.2, ease: "easeOut" }}
               className="flex-1 flex flex-col"
             >
-              {currentScreen === 'HOME' && renderHome()}
-              {currentScreen === 'APP_DETAILS' && renderAppDetails()}
-              {currentScreen === 'TESTING_FLOW' && renderTestingFlow()}
-              {currentScreen === 'MY_POINTS' && renderMyPoints()}
-              {currentScreen === 'MY_APPS' && renderMyApps()}
-              {currentScreen === 'REVIEW_PANEL' && renderReviewPanel()}
-              {currentScreen === 'ADD_APP' && renderAddApp()}
-              {currentScreen === 'PROFILE' && renderProfile()}
-              {currentScreen === 'MY_SUBMISSIONS' && renderMySubmissions()}
+              {!user && renderLogin()}
+              {user && currentScreen === 'WELCOME_WIZARD' && renderWelcomeWizard()}
+              {user && currentScreen === 'HOME' && renderHome()}
+              {user && currentScreen === 'APP_DETAILS' && renderAppDetails()}
+              {user && currentScreen === 'TESTING_FLOW' && renderTestingFlow()}
+              {user && currentScreen === 'MY_POINTS' && renderMyPoints()}
+              {user && currentScreen === 'MY_APPS' && renderMyApps()}
+              {user && currentScreen === 'REVIEW_PANEL' && renderReviewPanel()}
+              {user && currentScreen === 'ADD_APP' && renderAddApp()}
+              {user && currentScreen === 'PROFILE' && renderProfile()}
+              {user && currentScreen === 'ACCOUNT_SETTINGS' && renderAccountSettings()}
+              {user && currentScreen === 'NOTIFICATIONS' && renderNotifications()}
+              {user && currentScreen === 'APPEARANCE' && renderAppearance()}
+              {user && currentScreen === 'MY_SUBMISSIONS' && renderMySubmissions()}
             </motion.div>
           </AnimatePresence>
         </main>
 
         {/* Bottom Navigation - Only on Mobile */}
-        <nav className="md:hidden sticky bottom-0 left-0 right-0 bg-background/80 backdrop-blur-xl border-t border-white/5 px-6 py-4 pb-8 flex items-center justify-between z-50">
-          <NavItem 
-            active={currentScreen === 'HOME' || currentScreen === 'APP_DETAILS' || currentScreen === 'TESTING_FLOW'} 
-            icon={Home} 
-            label={t.home} 
-            onClick={() => navigate('HOME')} 
-          />
-          <NavItem 
-            active={currentScreen === 'MY_POINTS'} 
-            icon={Coins} 
-            label={t.points} 
-            onClick={() => navigate('MY_POINTS')} 
-          />
-          <NavItem 
-            active={currentScreen === 'MY_APPS' || currentScreen === 'REVIEW_PANEL' || currentScreen === 'ADD_APP'} 
-            icon={Layout} 
-            label={t.myApps} 
-            onClick={() => navigate('MY_APPS')} 
-          />
-          <NavItem 
-            active={currentScreen === 'PROFILE' || currentScreen === 'MY_SUBMISSIONS'} 
-            icon={User} 
-            label={t.profile} 
-            onClick={() => navigate('PROFILE')} 
-          />
-        </nav>
+        {user && currentScreen !== 'WELCOME_WIZARD' && (
+          <nav className="md:hidden sticky bottom-0 left-0 right-0 bg-background/80 backdrop-blur-xl border-t border-border px-6 py-4 pb-8 flex items-center justify-between z-50">
+            <NavItem 
+              active={currentScreen === 'HOME' || currentScreen === 'APP_DETAILS' || currentScreen === 'TESTING_FLOW'} 
+              icon={Home} 
+              label={t.home} 
+              onClick={() => navigate('HOME')} 
+            />
+            <NavItem 
+              active={currentScreen === 'MY_POINTS'} 
+              icon={Coins} 
+              label={t.points} 
+              onClick={() => navigate('MY_POINTS')} 
+            />
+            <NavItem 
+              active={currentScreen === 'MY_APPS' || currentScreen === 'REVIEW_PANEL' || currentScreen === 'ADD_APP'} 
+              icon={Layout} 
+              label={t.myApps} 
+              onClick={() => navigate('MY_APPS')} 
+            />
+            <NavItem 
+              active={currentScreen === 'PROFILE' || currentScreen === 'MY_SUBMISSIONS' || currentScreen === 'ACCOUNT_SETTINGS' || currentScreen === 'NOTIFICATIONS' || currentScreen === 'APPEARANCE'} 
+              icon={User} 
+              label={t.profile} 
+              onClick={() => navigate('PROFILE')} 
+            />
+          </nav>
+        )}
 
         {/* Home Indicator - Only on Mobile */}
-        <div className="md:hidden absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1 bg-white/10 rounded-full z-50"></div>
+        {user && currentScreen !== 'WELCOME_WIZARD' && (
+          <div className="md:hidden absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1 bg-border rounded-full z-50"></div>
+        )}
       </div>
     </div>
   );
@@ -1206,7 +1659,7 @@ function SidebarItem({ active, icon: Icon, label, onClick, isRtl }: { active: bo
       className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
         active 
           ? 'bg-primary-start text-white shadow-lg shadow-primary-start/20' 
-          : 'text-white/50 hover:text-white hover:bg-white/5'
+          : 'text-text-muted hover:text-text hover:bg-border'
       }`}
     >
       <Icon size={20} />
@@ -1225,7 +1678,7 @@ function NavItem({ active, icon: Icon, label, onClick }: { active: boolean, icon
   return (
     <button 
       onClick={onClick}
-      className={`flex flex-col items-center gap-1 transition-all ${active ? 'text-primary-start' : 'text-white/30 hover:text-white/50'}`}
+      className={`flex flex-col items-center gap-1 transition-all ${active ? 'text-primary-start' : 'text-text-muted hover:text-text'}`}
     >
       <div className={`p-1 rounded-lg transition-colors ${active ? 'bg-primary-start/10' : ''}`}>
         <Icon size={22} strokeWidth={active ? 2.5 : 2} />
