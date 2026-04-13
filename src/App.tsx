@@ -47,12 +47,16 @@ import {
   setDoc, 
   updateDoc, 
   onSnapshot,
-  FirebaseUser
+  FirebaseUser,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
+  updateProfile
 } from './firebase';
 
 // --- Types ---
 
-type Screen = 'HOME' | 'APP_DETAILS' | 'TESTING_FLOW' | 'MY_POINTS' | 'MY_APPS' | 'REVIEW_PANEL' | 'ADD_APP' | 'PROFILE' | 'MY_SUBMISSIONS' | 'ACCOUNT_SETTINGS' | 'NOTIFICATIONS' | 'APPEARANCE' | 'LOGIN' | 'WELCOME_WIZARD';
+type Screen = 'HOME' | 'APP_DETAILS' | 'TESTING_FLOW' | 'MY_POINTS' | 'MY_APPS' | 'REVIEW_PANEL' | 'ADD_APP' | 'PROFILE' | 'MY_SUBMISSIONS' | 'ACCOUNT_SETTINGS' | 'NOTIFICATIONS' | 'APPEARANCE' | 'LOGIN' | 'WELCOME_WIZARD' | 'VERIFY_EMAIL';
 type Language = 'en' | 'ar';
 type SubmissionStatus = 'pending' | 'approved' | 'rejected';
 type Theme = 'light' | 'dark' | 'system';
@@ -157,6 +161,7 @@ const translations = {
     myApps: "My Apps",
     submissionSuccess: "Submission successful!",
     appSubmitted: "App submitted for review!",
+    insufficientPoints: "Insufficient points to publish app",
     light: "Light",
     dark: "Dark",
     system: "System",
@@ -183,6 +188,17 @@ const translations = {
     loginTitle: "Test & Earn",
     loginSubtitle: "The ultimate platform for Android app testing exchange.",
     errorLogin: "Failed to sign in. Please try again.",
+    username: "Username",
+    password: "Password",
+    login: "Login",
+    register: "Register",
+    dontHaveAccount: "Don't have an account?",
+    alreadyHaveAccount: "Already have an account?",
+    verificationSent: "Verification email sent! Please check your inbox.",
+    verifyEmailTitle: "Verify your email",
+    verifyEmailDesc: "We've sent a verification link to your email. Please verify to continue.",
+    resendEmail: "Resend Email",
+    checkVerification: "I've verified my email",
   },
   ar: {
     // ... existing translations
@@ -284,6 +300,7 @@ const translations = {
     myApps: "تطبيقاتي",
     submissionSuccess: "تم الإرسال بنجاح!",
     appSubmitted: "تم تقديم التطبيق للمراجعة!",
+    insufficientPoints: "نقاط غير كافية لنشر التطبيق",
     light: "فاتح",
     dark: "داكن",
     system: "تلقائي",
@@ -309,6 +326,17 @@ const translations = {
     loginTitle: "اختبر واربح",
     loginSubtitle: "المنصة الأمثل لتبادل اختبار تطبيقات أندرويد.",
     errorLogin: "فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.",
+    username: "اسم المستخدم",
+    password: "كلمة المرور",
+    login: "تسجيل الدخول",
+    register: "إنشاء حساب",
+    dontHaveAccount: "ليس لديك حساب؟",
+    alreadyHaveAccount: "لديك حساب بالفعل؟",
+    verificationSent: "تم إرسال رابط التحقق! يرجى التحقق من بريدك الإلكتروني.",
+    verifyEmailTitle: "تحقق من بريدك الإلكتروني",
+    verifyEmailDesc: "لقد أرسلنا رابط تحقق إلى بريدك الإلكتروني. يرجى التحقق للمتابعة.",
+    resendEmail: "إعادة إرسال البريد",
+    checkVerification: "لقد قمت بالتحقق من بريدي",
   }
 };
 
@@ -321,6 +349,8 @@ interface AppItem {
   testersCount: number;
   description: string;
   instructions: string;
+  downloadLink?: string;
+  groupLink?: string;
 }
 
 interface PointHistory {
@@ -477,8 +507,21 @@ export default function App() {
   const [selectedApp, setSelectedApp] = useState<AppItem | null>(null);
   const [points, setPoints] = useState(0);
   const [navHistory, setNavHistory] = useState<Screen[]>(['HOME']);
-  const [lang, setLang] = useState<Language>(() => (localStorage.getItem('lang') as Language) || 'en');
+  const [lang, setLang] = useState<Language>(() => {
+    const saved = localStorage.getItem('lang') as Language;
+    if (saved) return saved;
+    const browserLang = navigator.language.split('-')[0];
+    return browserLang === 'ar' ? 'ar' : 'en';
+  });
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('theme') as Theme) || 'dark');
+
+  // Auth States
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [isEmailVerificationSent, setIsEmailVerificationSent] = useState(false);
 
   // Wizard State
   const [wizardStep, setWizardStep] = useState(1);
@@ -486,6 +529,13 @@ export default function App() {
   const [isAppInstalled, setIsAppInstalled] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [welcomeStep, setWelcomeStep] = useState(1);
+
+  // Add App States
+  const [newAppName, setNewAppName] = useState('');
+  const [newAppDesc, setNewAppDesc] = useState('');
+  const [newAppGroupLink, setNewAppGroupLink] = useState('https://groups.google.com/g/test-swap');
+  const [newAppTestersNeeded, setNewAppTestersNeeded] = useState(12);
+  const [newAppDownloadLink, setNewAppDownloadLink] = useState('');
 
   const t = translations[lang];
   const isRtl = lang === 'ar';
@@ -495,6 +545,13 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
+        // Check email verification for email/password users
+        if (firebaseUser.providerData.some(p => p.providerId === 'password') && !firebaseUser.emailVerified) {
+          setCurrentScreen('VERIFY_EMAIL');
+          setIsAuthLoading(false);
+          return;
+        }
+
         // Fetch or create user data
         const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
         if (userDoc.exists()) {
@@ -503,12 +560,14 @@ export default function App() {
           setPoints(data.points || 0);
           if (data.isNewUser) {
             setCurrentScreen('WELCOME_WIZARD');
+          } else {
+            setCurrentScreen('HOME');
           }
         } else {
           // New user
           const newData = {
             uid: firebaseUser.uid,
-            displayName: firebaseUser.displayName,
+            displayName: firebaseUser.displayName || username || firebaseUser.email?.split('@')[0],
             email: firebaseUser.email,
             photoURL: firebaseUser.photoURL,
             points: 10, // Starting points
@@ -529,7 +588,7 @@ export default function App() {
       setIsAuthLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [username]);
 
   // Persistence
   React.useEffect(() => {
@@ -577,12 +636,65 @@ export default function App() {
     }
   };
 
-  const handleLogin = async () => {
+  const handleGoogleLogin = async () => {
     try {
+      setAuthError('');
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error("Login error:", error);
-      alert(t.errorLogin);
+      setAuthError(t.errorLogin);
+    }
+  };
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    setIsAuthLoading(true);
+
+    try {
+      if (authMode === 'register') {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(userCredential.user, { displayName: username });
+        await sendEmailVerification(userCredential.user);
+        setIsEmailVerificationSent(true);
+        setCurrentScreen('VERIFY_EMAIL');
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+    } catch (error: any) {
+      console.error("Email auth error:", error);
+      setAuthError(error.message);
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (user) {
+      try {
+        await sendEmailVerification(user);
+        alert(t.verificationSent);
+      } catch (error: any) {
+        alert(error.message);
+      }
+    }
+  };
+
+  const checkVerificationStatus = async () => {
+    if (user) {
+      await user.reload();
+      if (user.emailVerified) {
+        // Trigger the auth listener by setting user again or just wait for it?
+        // Actually user.reload() doesn't trigger onAuthStateChanged.
+        // We can manually trigger the logic.
+        const firebaseUser = auth.currentUser;
+        if (firebaseUser?.emailVerified) {
+          setUser(null); // Force trigger
+          setUser(firebaseUser);
+        }
+      } else {
+        alert("Email not verified yet. Please check your inbox.");
+      }
     }
   };
 
@@ -602,20 +714,183 @@ export default function App() {
     }
   };
 
+  const handlePublishApp = async () => {
+    if (!user) return;
+    if (points < 20) {
+      alert(t.insufficientPoints);
+      return;
+    }
+
+    if (!newAppName || !newAppDesc) {
+      alert(isRtl ? "يرجى ملء جميع الحقول المطلوبة" : "Please fill in all required fields");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const appId = Math.random().toString(36).substring(7);
+      const newApp: AppItem = {
+        id: appId,
+        name: newAppName,
+        description: newAppDesc,
+        icon: `https://picsum.photos/seed/${appId}/100/100`,
+        reward: 1,
+        testersNeeded: newAppTestersNeeded,
+        testersCount: 0,
+        instructions: isRtl 
+          ? "1. انضم إلى مجموعة جوجل.\n2. قم بتثبيت التطبيق.\n3. اختبر التطبيق لمدة 15 دقيقة."
+          : "1. Join the Google Group.\n2. Install the app.\n3. Test for 15 minutes.",
+        downloadLink: newAppDownloadLink,
+        groupLink: newAppGroupLink
+      };
+
+      await setDoc(doc(db, 'apps', appId), newApp);
+      
+      const newPoints = points - 20;
+      await updateDoc(doc(db, 'users', user.uid), { points: newPoints });
+      setPoints(newPoints);
+      setUserData(prev => prev ? { ...prev, points: newPoints } : null);
+
+      alert(t.appSubmitted);
+      navigate('MY_APPS');
+      
+      // Reset form
+      setNewAppName('');
+      setNewAppDesc('');
+      setNewAppTestersNeeded(12);
+      setNewAppDownloadLink('');
+    } catch (error) {
+      console.error("Error publishing app:", error);
+      alert("Error publishing app. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // --- Screen Renderers ---
 
   const renderLogin = () => (
-    <div className="flex-1 flex flex-col items-center p-6 pt-20 text-center space-y-8">
-      <div className="w-24 h-24 rounded-3xl overflow-hidden shadow-2xl shadow-primary-start/40">
+    <div className="flex-1 flex flex-col items-center p-6 pt-12 text-center space-y-8 overflow-y-auto no-scrollbar">
+      {/* Language Switcher */}
+      <div className="absolute top-6 right-6 flex gap-2">
+        <button 
+          onClick={() => setLang('en')} 
+          className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${lang === 'en' ? 'bg-primary-start text-white' : 'bg-border text-text-muted'}`}
+        >
+          EN
+        </button>
+        <button 
+          onClick={() => setLang('ar')} 
+          className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${lang === 'ar' ? 'bg-primary-start text-white' : 'bg-border text-text-muted'}`}
+        >
+          AR
+        </button>
+      </div>
+
+      <div className="w-20 h-20 rounded-3xl overflow-hidden shadow-2xl shadow-primary-start/40">
         <img src="/logo.png" alt="Test Swap" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
       </div>
+      
       <div className="space-y-2">
-        <h1 className="text-4xl font-bold tracking-tight">{t.loginTitle}</h1>
-        <p className="text-text-muted max-w-xs mx-auto">{t.loginSubtitle}</p>
+        <h1 className="text-3xl font-bold tracking-tight">{t.loginTitle}</h1>
+        <p className="text-text-muted max-w-xs mx-auto text-sm">{t.loginSubtitle}</p>
       </div>
-      <Button onClick={handleLogin} className="w-full max-w-xs py-4" icon={Mail}>
-        {t.loginWithGoogle}
-      </Button>
+
+      <div className="w-full max-w-xs space-y-6">
+        <form onSubmit={handleEmailAuth} className="space-y-4 text-left">
+          {authMode === 'register' && (
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-text-muted uppercase ml-1">{t.username}</label>
+              <input 
+                type="text" 
+                required
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder={t.username}
+                className="w-full bg-border border border-border rounded-xl py-3 px-4 focus:outline-none focus:border-primary-start/50 transition-colors"
+              />
+            </div>
+          )}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-text-muted uppercase ml-1">{t.emailAddress}</label>
+            <input 
+              type="email" 
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="email@example.com"
+              className="w-full bg-border border border-border rounded-xl py-3 px-4 focus:outline-none focus:border-primary-start/50 transition-colors"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-text-muted uppercase ml-1">{t.password}</label>
+            <input 
+              type="password" 
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full bg-border border border-border rounded-xl py-3 px-4 focus:outline-none focus:border-primary-start/50 transition-colors"
+            />
+          </div>
+
+          {authError && <p className="text-error text-xs font-medium text-center">{authError}</p>}
+
+          <Button disabled={isAuthLoading} className="w-full py-4">
+            {authMode === 'login' ? t.login : t.register}
+          </Button>
+        </form>
+
+        <div className="flex items-center gap-4">
+          <div className="flex-1 h-[1px] bg-border"></div>
+          <span className="text-xs text-text-muted font-bold uppercase">OR</span>
+          <div className="flex-1 h-[1px] bg-border"></div>
+        </div>
+
+        <Button onClick={handleGoogleLogin} variant="outline" className="w-full py-4" icon={Mail}>
+          {t.loginWithGoogle}
+        </Button>
+
+        <p className="text-sm text-text-muted">
+          {authMode === 'login' ? t.dontHaveAccount : t.alreadyHaveAccount}{' '}
+          <button 
+            onClick={() => {
+              setAuthMode(authMode === 'login' ? 'register' : 'login');
+              setAuthError('');
+            }}
+            className="text-primary-start font-bold hover:underline"
+          >
+            {authMode === 'login' ? t.register : t.login}
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+
+  const renderVerifyEmail = () => (
+    <div className="flex-1 flex flex-col items-center p-6 pt-20 text-center space-y-8">
+      <div className="w-20 h-20 rounded-full bg-primary-start/10 flex items-center justify-center text-primary-start">
+        <Mail size={40} />
+      </div>
+      <div className="space-y-2">
+        <h1 className="text-2xl font-bold">{t.verifyEmailTitle}</h1>
+        <p className="text-text-muted max-w-xs mx-auto">{t.verifyEmailDesc}</p>
+        <p className="text-primary-start font-bold text-sm">{email}</p>
+      </div>
+      <div className="w-full max-w-xs space-y-4">
+        <Button onClick={checkVerificationStatus} className="w-full py-4">
+          {t.checkVerification}
+        </Button>
+        <Button onClick={handleResendVerification} variant="outline" className="w-full py-4">
+          {t.resendEmail}
+        </Button>
+        <button 
+          onClick={handleLogout}
+          className="text-text-muted text-sm font-bold hover:text-text transition-colors"
+        >
+          {t.logout}
+        </button>
+      </div>
     </div>
   );
 
@@ -766,8 +1041,28 @@ export default function App() {
           </div>
 
           <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" icon={MessageSquare}>{t.joinGroup}</Button>
-            <Button variant="outline" className="flex-1" icon={ExternalLink}>{t.appLink}</Button>
+            <Button 
+              variant="outline" 
+              className="flex-1" 
+              icon={MessageSquare}
+              onClick={() => {
+                const link = selectedApp?.groupLink || 'https://groups.google.com/g/test-swap';
+                window.open(link, '_blank');
+              }}
+            >
+              {t.joinGroup}
+            </Button>
+            <Button 
+              variant="outline" 
+              className="flex-1" 
+              icon={ExternalLink}
+              onClick={() => {
+                const link = selectedApp?.downloadLink || 'https://play.google.com/store/apps/details?id=com.example.app';
+                window.open(link, '_blank');
+              }}
+            >
+              {t.appLink}
+            </Button>
           </div>
 
           <div className="space-y-3">
@@ -1231,23 +1526,56 @@ export default function App() {
           <div className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-text">{t.appName}</label>
-              <input type="text" placeholder={t.enterAppName} className="w-full bg-border border border-border rounded-xl py-3 px-4 focus:outline-none focus:border-primary-start/50" />
+              <input 
+                type="text" 
+                value={newAppName}
+                onChange={(e) => setNewAppName(e.target.value)}
+                placeholder={t.enterAppName} 
+                className="w-full bg-border border border-border rounded-xl py-3 px-4 focus:outline-none focus:border-primary-start/50" 
+              />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-text">{t.appDescription}</label>
-              <textarea placeholder={t.whatDoesAppDo} className="w-full bg-border border border-border rounded-xl p-4 text-sm focus:outline-none focus:border-primary-start/50 h-32 resize-none"></textarea>
+              <textarea 
+                value={newAppDesc}
+                onChange={(e) => setNewAppDesc(e.target.value)}
+                placeholder={t.whatDoesAppDo} 
+                className="w-full bg-border border border-border rounded-xl p-4 text-sm focus:outline-none focus:border-primary-start/50 h-32 resize-none"
+              ></textarea>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-text">{t.appLink}</label>
+              <input 
+                type="text" 
+                value={newAppDownloadLink}
+                onChange={(e) => setNewAppDownloadLink(e.target.value)}
+                placeholder="https://play.google.com/apps/testing/site.hikmahsoft.speed" 
+                className="w-full bg-border border border-border rounded-xl py-3 px-4 focus:outline-none focus:border-primary-start/50" 
+              />
             </div>
           </div>
           <div className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-text">{t.googleGroupLink}</label>
-              <input type="text" defaultValue="https://groups.google.com/g/test-swap" className="w-full bg-border border border-border rounded-xl py-3 px-4 focus:outline-none focus:border-primary-start/50" />
+              <input 
+                type="text" 
+                value={newAppGroupLink}
+                onChange={(e) => setNewAppGroupLink(e.target.value)}
+                className="w-full bg-border border border-border rounded-xl py-3 px-4 focus:outline-none focus:border-primary-start/50" 
+              />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-text">{t.requiredTesters}</label>
               <div className="flex items-center gap-4 p-4 bg-border rounded-xl border border-border">
-                <input type="range" min="5" max="50" className="flex-1 accent-primary-start" />
-                <span className="font-bold text-primary-start">20</span>
+                <input 
+                  type="range" 
+                  min="5" 
+                  max="50" 
+                  value={newAppTestersNeeded}
+                  onChange={(e) => setNewAppTestersNeeded(parseInt(e.target.value))}
+                  className="flex-1 accent-primary-start" 
+                />
+                <span className="font-bold text-primary-start">{newAppTestersNeeded}</span>
               </div>
             </div>
             <div className="glass-card p-4 space-y-3">
@@ -1264,7 +1592,15 @@ export default function App() {
         </div>
       </div>
 
-      <Button onClick={() => { alert(t.appSubmitted); navigate('MY_APPS'); }} className="w-full py-4">{t.publishApp}</Button>
+      <Button 
+        onClick={handlePublishApp} 
+        disabled={isSubmitting}
+        className="w-full py-4"
+      >
+        {isSubmitting ? (
+          <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+        ) : t.publishApp}
+      </Button>
       </div>
     </div>
   );
@@ -1611,6 +1947,7 @@ export default function App() {
               className="flex-1 flex flex-col"
             >
               {!user && renderLogin()}
+              {user && currentScreen === 'VERIFY_EMAIL' && renderVerifyEmail()}
               {user && currentScreen === 'WELCOME_WIZARD' && renderWelcomeWizard()}
               {user && currentScreen === 'HOME' && renderHome()}
               {user && currentScreen === 'APP_DETAILS' && renderAppDetails()}
