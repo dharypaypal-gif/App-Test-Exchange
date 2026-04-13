@@ -173,7 +173,7 @@ const translations = {
     settingsSaved: "Settings saved!",
     logout: "Log Out",
     loginWithGoogle: "Sign in with Google",
-    welcomeTitle: "Welcome to TestSwap!",
+    welcomeTitle: "Welcome to Test Swap!",
     welcomeDesc: "Join our community of testers and developers. Earn points by testing apps and help others improve their products.",
     getStarted: "Get Started",
     joinGroupTitle: "Join our Google Group",
@@ -299,7 +299,7 @@ const translations = {
     profileUpdated: "تم تحديث الملف الشخصي بنجاح!",
     settingsSaved: "تم حفظ الإعدادات!",
     loginWithGoogle: "تسجيل الدخول عبر جوجل",
-    welcomeTitle: "مرحباً بك في TestSwap!",
+    welcomeTitle: "مرحباً بك في Test Swap!",
     welcomeDesc: "انضم إلى مجتمعنا من المختبرين والمطورين. اربح النقاط من خلال اختبار التطبيقات وساعد الآخرين في تحسين منتجاتهم.",
     getStarted: "ابدأ الآن",
     joinGroupTitle: "انضم إلى مجموعة جوجل الخاصة بنا",
@@ -349,7 +349,7 @@ const MOCK_APPS: AppItem[] = [
     id: '1',
     name: 'DevFlow Pro',
     icon: 'https://picsum.photos/seed/devflow/100/100',
-    reward: 50,
+    reward: 1,
     testersNeeded: 20,
     testersCount: 12,
     description: 'A productivity tool for developers to manage their daily tasks and code snippets.',
@@ -359,7 +359,7 @@ const MOCK_APPS: AppItem[] = [
     id: '2',
     name: 'CodeSync',
     icon: 'https://picsum.photos/seed/codesync/100/100',
-    reward: 75,
+    reward: 1,
     testersNeeded: 15,
     testersCount: 5,
     description: 'Real-time code collaboration platform with built-in terminal.',
@@ -369,7 +369,7 @@ const MOCK_APPS: AppItem[] = [
     id: '3',
     name: 'BugHunter',
     icon: 'https://picsum.photos/seed/bughunter/100/100',
-    reward: 100,
+    reward: 1,
     testersNeeded: 10,
     testersCount: 8,
     description: 'Automated bug reporting tool for Android developers.',
@@ -378,9 +378,9 @@ const MOCK_APPS: AppItem[] = [
 ];
 
 const MOCK_HISTORY: PointHistory[] = [
-  { id: '1', app: 'DevFlow Pro', points: 50, date: '2024-03-20', status: 'confirmed' },
-  { id: '2', app: 'CodeSync', points: 75, date: '2024-03-21', status: 'pending' },
-  { id: '3', app: 'UI Master', points: 30, date: '2024-03-18', status: 'confirmed' }
+  { id: '1', app: 'DevFlow Pro', points: 1, date: '2024-03-20', status: 'confirmed' },
+  { id: '2', app: 'CodeSync', points: 1, date: '2024-03-21', status: 'pending' },
+  { id: '3', app: 'UI Master', points: 1, date: '2024-03-18', status: 'confirmed' }
 ];
 
 const MOCK_SUBMISSIONS: Submission[] = [
@@ -511,14 +511,14 @@ export default function App() {
             displayName: firebaseUser.displayName,
             email: firebaseUser.email,
             photoURL: firebaseUser.photoURL,
-            points: 500, // Starting points
+            points: 10, // Starting points
             isNewUser: true,
             createdAt: new Date().toISOString(),
             role: 'user'
           };
           await setDoc(doc(db, 'users', firebaseUser.uid), newData);
           setUserData(newData);
-          setPoints(500);
+          setPoints(10);
           setCurrentScreen('WELCOME_WIZARD');
         }
       } else {
@@ -605,9 +605,9 @@ export default function App() {
   // --- Screen Renderers ---
 
   const renderLogin = () => (
-    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-8">
-      <div className="w-24 h-24 rounded-3xl gradient-primary flex items-center justify-center shadow-2xl shadow-primary-start/40">
-        <Layout size={48} className="text-white" />
+    <div className="flex-1 flex flex-col items-center p-6 pt-20 text-center space-y-8">
+      <div className="w-24 h-24 rounded-3xl overflow-hidden shadow-2xl shadow-primary-start/40">
+        <img src="/logo.png" alt="Test Swap" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
       </div>
       <div className="space-y-2">
         <h1 className="text-4xl font-bold tracking-tight">{t.loginTitle}</h1>
@@ -622,7 +622,7 @@ export default function App() {
   const renderWelcomeWizard = () => {
     return (
       <div className="flex-1 flex flex-col p-6 space-y-8 overflow-y-auto no-scrollbar">
-        <div className="max-w-md mx-auto w-full flex-1 flex flex-col justify-center space-y-8">
+        <div className="max-w-md mx-auto w-full space-y-8 pt-12">
           <AnimatePresence mode="wait">
             {welcomeStep === 1 && (
               <motion.div
@@ -812,19 +812,34 @@ export default function App() {
       return true;
     };
 
-    const handleNext = () => {
+    const handleNext = async () => {
       if (wizardStep < 4) {
         setWizardStep(wizardStep + 1);
       } else {
         setIsSubmitting(true);
-        setTimeout(() => {
+        try {
+          if (user) {
+            const newPoints = points + 1;
+            await updateDoc(doc(db, 'users', user.uid), {
+              points: newPoints
+            });
+            setPoints(newPoints);
+            setUserData(prev => prev ? { ...prev, points: newPoints } : null);
+          }
+          
+          setTimeout(() => {
+            setIsSubmitting(false);
+            alert(t.submissionSuccess);
+            setWizardStep(1);
+            setIsGroupJoined(false);
+            setIsAppInstalled(false);
+            navigate('MY_SUBMISSIONS');
+          }, 1500);
+        } catch (error) {
+          console.error("Error updating points:", error);
           setIsSubmitting(false);
-          alert(t.submissionSuccess);
-          setWizardStep(1);
-          setIsGroupJoined(false);
-          setIsAppInstalled(false);
-          navigate('MY_SUBMISSIONS');
-        }, 1500);
+          alert("Error submitting. Please try again.");
+        }
       }
     };
 
@@ -1238,7 +1253,7 @@ export default function App() {
             <div className="glass-card p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">{t.costToPublish}</span>
-                <span className="font-bold text-accent">500 {t.pts}</span>
+                <span className="font-bold text-accent">20 {t.pts}</span>
               </div>
               <div className="flex items-center justify-between text-xs text-text-muted">
                 <span>{t.yourBalance}</span>
@@ -1520,15 +1535,15 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen bg-background text-text font-sans selection:bg-primary-start/30 ${isRtl ? 'rtl' : 'ltr'}`}>
+    <div className={`app-container selection:bg-primary-start/30 ${isRtl ? 'rtl' : 'ltr'}`}>
       {/* Desktop Sidebar */}
       {user && currentScreen !== 'WELCOME_WIZARD' && (
         <aside className="desktop-sidebar">
           <div className="flex items-center gap-3 px-4 mb-8">
-            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-lg shadow-primary-start/20">
-              <Layout size={24} className="text-white" />
+            <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-primary-start/20">
+              <img src="/logo.png" alt="Test Swap" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             </div>
-            <span className="text-xl font-bold tracking-tight">TestSwap</span>
+            <span className="text-xl font-bold tracking-tight">Test Swap</span>
           </div>
 
           <nav className="flex flex-col gap-2">
