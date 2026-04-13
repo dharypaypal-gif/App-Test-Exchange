@@ -199,6 +199,9 @@ const translations = {
     verifyEmailDesc: "We've sent a verification link to your email. Please verify to continue.",
     resendEmail: "Resend Email",
     checkVerification: "I've verified my email",
+    noNotifications: "No new notifications",
+    newTester: "New tester for your app",
+    pointsEarned: "You earned a new point",
   },
   ar: {
     // ... existing translations
@@ -301,6 +304,9 @@ const translations = {
     submissionSuccess: "تم الإرسال بنجاح!",
     appSubmitted: "تم تقديم التطبيق للمراجعة!",
     insufficientPoints: "نقاط غير كافية لنشر التطبيق",
+    noNotifications: "لا توجد إشعارات جديدة",
+    newTester: "مختبر جديد لتطبيقك",
+    pointsEarned: "لقد كسبت نقطة جديدة",
     light: "فاتح",
     dark: "داكن",
     system: "تلقائي",
@@ -370,6 +376,15 @@ interface Submission {
   status: SubmissionStatus;
   submittedAt: string;
   answers?: string[];
+}
+
+interface Notification {
+  id: string;
+  title: string;
+  description: string;
+  time: string;
+  isRead: boolean;
+  type: 'tester' | 'points' | 'system';
 }
 
 // --- Mock Data ---
@@ -443,6 +458,33 @@ const MOCK_SUBMISSIONS: Submission[] = [
     status: 'rejected',
     submittedAt: '2024-03-20 18:45',
     answers: ['App crashed twice', 'UI is confusing']
+  }
+];
+
+const MOCK_NOTIFICATIONS: Notification[] = [
+  {
+    id: '1',
+    title: 'New Tester',
+    description: 'Alex Dev started testing DevFlow Pro',
+    time: '2m ago',
+    isRead: false,
+    type: 'tester'
+  },
+  {
+    id: '2',
+    title: 'Points Earned',
+    description: 'You earned 1 point for testing CodeSync',
+    time: '1h ago',
+    isRead: false,
+    type: 'points'
+  },
+  {
+    id: '3',
+    title: 'Welcome!',
+    description: 'Welcome to Test Swap. Start testing to earn points.',
+    time: '1d ago',
+    isRead: true,
+    type: 'system'
   }
 ];
 
@@ -536,6 +578,10 @@ export default function App() {
   const [newAppGroupLink, setNewAppGroupLink] = useState('https://groups.google.com/g/test-swap');
   const [newAppTestersNeeded, setNewAppTestersNeeded] = useState(12);
   const [newAppDownloadLink, setNewAppDownloadLink] = useState('');
+
+  // Notification State
+  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const t = translations[lang];
   const isRtl = lang === 'ar';
@@ -965,10 +1011,78 @@ export default function App() {
           <h1 className="text-2xl font-bold tracking-tight">{t.exploreApps}</h1>
           <p className="text-text-muted text-sm">{t.earnPoints}</p>
         </div>
-        <button className="p-2 bg-border rounded-full relative">
-          <Bell size={20} />
-          <span className={`absolute top-1 ${isRtl ? 'left-1' : 'right-1'} w-2 h-2 bg-accent rounded-full border-2 border-background`}></span>
-        </button>
+        <div className="relative">
+          <button 
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="p-2 bg-border rounded-full relative hover:bg-border/80 transition-colors"
+          >
+            <Bell size={20} />
+            {notifications.filter(n => !n.isRead).length > 0 && (
+              <span className={`absolute -top-1 ${isRtl ? '-left-1' : '-right-1'} w-5 h-5 bg-error text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-background animate-pulse`}>
+                {notifications.filter(n => !n.isRead).length}
+              </span>
+            )}
+          </button>
+
+          <AnimatePresence>
+            {showNotifications && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                className={`absolute top-12 ${isRtl ? 'left-0' : 'right-0'} w-[calc(100vw-3rem)] sm:w-80 glass-card z-[100] overflow-hidden shadow-2xl`}
+              >
+                <div className="p-4 border-b border-border flex items-center justify-between bg-card/50">
+                  <h3 className="font-bold text-sm">{t.notifications}</h3>
+                  <button 
+                    onClick={() => {
+                      setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+                    }}
+                    className="text-[10px] font-bold text-primary-start uppercase hover:underline"
+                  >
+                    {isRtl ? 'تحديد الكل كمقروء' : 'Mark all as read'}
+                  </button>
+                </div>
+                <div className="max-h-96 overflow-y-auto no-scrollbar">
+                  {notifications.length > 0 ? (
+                    notifications.map(notification => (
+                      <div 
+                        key={notification.id} 
+                        className={`p-4 border-b border-border last:border-0 flex gap-3 hover:bg-primary-start/5 transition-colors cursor-pointer ${!notification.isRead ? 'bg-primary-start/5' : ''}`}
+                        onClick={() => {
+                          setNotifications(notifications.map(n => n.id === notification.id ? { ...n, isRead: true } : n));
+                        }}
+                      >
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                          notification.type === 'tester' ? 'bg-accent/10 text-accent' : 
+                          notification.type === 'points' ? 'bg-success/10 text-success' : 
+                          'bg-primary-start/10 text-primary-start'
+                        }`}>
+                          {notification.type === 'tester' ? <Users size={18} /> : 
+                           notification.type === 'points' ? <Coins size={18} /> : 
+                           <Bell size={18} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold truncate">{notification.title}</p>
+                          <p className="text-xs text-text-muted line-clamp-2">{notification.description}</p>
+                          <p className="text-[10px] text-text-muted mt-1 font-medium">{notification.time}</p>
+                        </div>
+                        {!notification.isRead && (
+                          <div className="w-2 h-2 rounded-full bg-primary-start mt-2 shrink-0"></div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-8 text-center space-y-2">
+                      <Bell size={32} className="mx-auto text-text-muted opacity-20" />
+                      <p className="text-sm text-text-muted">{t.noNotifications}</p>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </header>
 
       <div className="relative">
@@ -1871,7 +1985,7 @@ export default function App() {
   }
 
   return (
-    <div className={`app-container selection:bg-primary-start/30 ${isRtl ? 'rtl' : 'ltr'}`}>
+    <div dir={isRtl ? 'rtl' : 'ltr'} className={`app-container selection:bg-primary-start/30 ${isRtl ? 'rtl' : 'ltr'}`}>
       {/* Desktop Sidebar */}
       {user && currentScreen !== 'WELCOME_WIZARD' && (
         <aside className="desktop-sidebar">
